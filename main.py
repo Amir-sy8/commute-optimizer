@@ -123,6 +123,9 @@ def main():
             histories[display_name] = history
             best_results[display_name] = (best_state, best_cost)
 
+            conv_step = next((i for i, c in enumerate(history) if abs(c - best_cost) < 1e-6), len(history))
+            print(f"   Convergence Step : {conv_step}")
+
             print(f"   [Done in {runtime:.3f}s]")
             print(f"   Optimal Departure: {best_state.format_time()} ({best_state.departure_time:.1f}m)")
             print(f"   Total Travel Time: {best_cost:.2f} minutes")
