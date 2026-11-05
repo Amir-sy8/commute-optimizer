@@ -1,13 +1,9 @@
-"""
-algorithms/genetic_algorithm.py
-Population-based optimization using selection, recombination, and mutation.
-"""
-
+import random
 from typing import Tuple
 from algorithms.base import LocalSearchSolver
 from core.state import State
 from core.problem import CommuteProblem
-from algorithms.operators import get_neighbors, crossover
+from algorithms.operators import get_neighbors, crossover, random_state
 
 
 class GeneticAlgorithmSolver(LocalSearchSolver):
@@ -18,21 +14,46 @@ class GeneticAlgorithmSolver(LocalSearchSolver):
         self.crossover_rate: float = self.params.get("crossover_rate", 0.8)
         self.mutation_rate: float = self.params.get("mutation_rate", 0.2)
         self.elitism: int = self.params.get("elitism", 2)
+        self.tournament_size: int = self.params.get("tournament_size", 3)
+
+    def fitness(self, state: State) -> float:
+        return 1.0 / (1.0 + self.problem.evaluate(state))
+
+    def select(self, population):
+        contenders = random.sample(population, min(self.tournament_size, len(population)))
+        return max(contenders, key=self.fitness)
 
     def solve(self) -> Tuple[State, float]:
-        """
-        Executes Genetic Algorithm optimization.
+        population = [self.problem.generate_initial_state()]
+        while len(population) < self.population_size:
+            population.append(random_state(self.problem))
 
-        Guidelines:
-        - Initialize a population of valid candidate solutions.
-        - Design a fitness metric suitable for minimizing commute travel time (lower cost -> higher fitness).
-        - Use selection operators (such as tournament or roulette selection) to pick parents.
-        - Pair parents to produce offspring via `crossover()`, and apply stochastic mutation.
-        - Preserve the top candidates across generations if using elitism.
-        - Track best population performance per generation in self.history.
+        best_state = min(population, key=self.problem.evaluate)
+        best_cost = self.problem.evaluate(best_state)
+        self.history.append(best_cost)
 
-        Encouraged:
-        - Experimenting with population size, selection pressure, and operator rates to balance exploration vs. exploitation.
-        """
-        # TODO: Implement Genetic Algorithm
-        raise NotImplementedError("Implement solve() in algorithms/genetic_algorithm.py")
+        for _ in range(self.generations):
+            ranked = sorted(population, key=self.problem.evaluate)
+            next_population = ranked[:min(self.elitism, self.population_size)]
+
+            while len(next_population) < self.population_size:
+                parent1 = self.select(population)
+                parent2 = self.select(population)
+                if random.random() < self.crossover_rate:
+                    child = crossover(parent1, parent2, self.problem)
+                else:
+                    child = parent1
+                if random.random() < self.mutation_rate:
+                    options = get_neighbors(child, self.problem)
+                    if options:
+                        child = random.choice(options)
+                next_population.append(child)
+
+            population = next_population
+            generation_best = min(population, key=self.problem.evaluate)
+            generation_cost = self.problem.evaluate(generation_best)
+            if generation_cost < best_cost:
+                best_state, best_cost = generation_best, generation_cost
+            self.history.append(best_cost)
+
+        return best_state, best_cost
